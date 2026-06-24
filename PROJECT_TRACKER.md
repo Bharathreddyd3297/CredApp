@@ -78,16 +78,23 @@ Status: DONE (defined in schema.sql)
 
 ### Frontend
 
-Status: NOT STARTED
+Status: IN PROGRESS (React foundation built - Vite + MUI dark luxury theme)
 
 Tasks:
 
-* Login Page
-* Register Page
-* Dashboard
-* Add Card Page
-* Payment Page
-* Success Page
+* Login Page - DONE
+* Register Page - DONE
+* Dashboard - DONE (cards, recent payments, quick actions, stats)
+* Add Card Page - DONE (live card preview)
+* Payment Page - DONE (Pay Bill: card select + amount + UPI)
+* Success Page - DONE (animated success state)
+
+Stack: React 18, Vite, React Router DOM, Axios, Material UI v6.
+Location: frontend-react/  (dev port 5173)
+API wiring: src/services/api.js -> User (8080) + Payment (8000), with
+graceful mock-data fallback when backend is unreachable.
+Build: VERIFIED - `npm run build` succeeds (1016 modules, exit 0).
+Live end-to-end against running backends not yet exercised.
 
 ### User Service
 
@@ -152,9 +159,9 @@ Tasks:
 
 [x] Payment API Working (POST /api/payment/pay, GET /api/payment/history/{userId})
 
-[ ] React Application Created
+[x] React Application Created (frontend-react/ - Vite + MUI, all 7 pages + routing)
 
-[ ] Frontend Connected to Backend
+[~] Frontend Connected to Backend (API layer wired to 8080/8000; mock fallback; live test pending)
 
 [ ] End-to-End Testing Completed
 
