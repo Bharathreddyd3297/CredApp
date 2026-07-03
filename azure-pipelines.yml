@@ -140,7 +140,7 @@ stages:
       inputs:
         provider: azurerm
         command: init
-        workingDirectory: Terraform
+        workingDirectory: terraform
         backendServiceArm: $(azureServiceConnection)
         backendAzureRmResourceGroupName: $(tfStateRG)
         backendAzureRmStorageAccountName: $(tfStateStorage)
@@ -151,7 +151,7 @@ stages:
       inputs:
         provider: 'azurerm'
         command: 'plan'
-        workingDirectory: 'Terraform'
+        workingDirectory: 'terraform'
         environmentServiceNameAzureRM: $(azureServiceConnection)
 
     - task: TerraformTask@5
@@ -159,7 +159,7 @@ stages:
       inputs:
         provider: azurerm
         command: apply
-        workingDirectory: Terraform
+        workingDirectory: terraform
         commandOptions: '--auto-approve'
         environmentServiceNameAzureRM: $(azureServiceConnection)
       
