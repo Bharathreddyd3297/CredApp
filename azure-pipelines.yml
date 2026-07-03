@@ -147,26 +147,26 @@ stages:
         backendAzureRmContainerName: $(tfStateContainer)
         backendAzureRmKey: $(tfStateKey)
 
-    - task: TerraformTask@5
-      inputs:
-        provider: 'azurerm'
-        command: 'plan'
-        workingDirectory: 'terraform'
-        environmentServiceNameAzureRM: $(azureServiceConnection)
-
-    - task: TerraformTask@5
-      displayName: Terraform Apply
-      inputs:
-        provider: azurerm
-        command: apply
-        workingDirectory: terraform
-        commandOptions: '--auto-approve'
-        environmentServiceNameAzureRM: $(azureServiceConnection)
-      
     # - task: TerraformTask@5
     #   inputs:
     #     provider: 'azurerm'
-    #     command: 'destroy'
-    #     workingDirectory: 'Terraform'
+    #     command: 'plan'
+    #     workingDirectory: 'terraform'
+    #     environmentServiceNameAzureRM: $(azureServiceConnection)
+
+    # - task: TerraformTask@5
+    #   displayName: Terraform Apply
+    #   inputs:
+    #     provider: azurerm
+    #     command: apply
+    #     workingDirectory: terraform
     #     commandOptions: '--auto-approve'
-    #     environmentServiceNameAzureRM: 'scnew2'
+    #     environmentServiceNameAzureRM: $(azureServiceConnection)
+      
+    - task: TerraformTask@5
+      inputs:
+        provider: 'azurerm'
+        command: 'destroy'
+        workingDirectory: 'Terraform'
+        commandOptions: '--auto-approve'
+        environmentServiceNameAzureRM: $(azureServiceConnection)
