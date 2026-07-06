@@ -1,11 +1,4 @@
-# =====================================================================
-# Monitoring - Log Analytics workspace + Container Insights solution
-# =====================================================================
-# This module only owns the workspace + Container Insights solution.
-# AKS ships its container logs/metrics here via its own oms_agent block
-# (see modules/aks). Keeping the workspace standalone avoids a module
-# cycle (AKS depends on this workspace, not the other way around).
-# =====================================================================
+
 resource "azurerm_log_analytics_workspace" "this" {
   name                = "log-${var.name_prefix}"
   location            = var.location

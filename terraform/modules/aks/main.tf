@@ -72,8 +72,4 @@ resource "azurerm_kubernetes_cluster" "this" {
   }
 }
 
-# NOTE: No ACR role assignment in Phase 1. An ACR already exists and images
-# are pushed from Azure DevOps. To attach it later, grant this cluster's
-# kubelet identity (output: kubelet_identity_object_id) the "AcrPull" role on
-# the existing registry - e.g. `az aks update --attach-acr <name>` or a
-# dedicated azurerm_role_assignment once we manage that dependency.
+

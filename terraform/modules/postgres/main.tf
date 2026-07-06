@@ -1,10 +1,4 @@
-# =====================================================================
-# PostgreSQL Flexible Server - Phase 1 (Dev/Test)
-# =====================================================================
-# Simple, cost-conscious posture: PUBLIC access with SSL enforced. No
-# private DNS, private endpoint, geo-redundant backup, or zone-redundant HA
-# (those come in a later phase, using the reserved snet-postgres subnet).
-# =====================================================================
+
 
 # ----- Generated admin password (never hardcoded) -----
 resource "random_password" "admin" {

@@ -1,0 +1,26 @@
+# =====================================================================
+# Terraform
+# =====================================================================
+# Local provider plugins / modules cache
+.terraform/
+.terraform.lock.hcl
+
+# State files (may contain secrets in plaintext, e.g. DB passwords)
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Variable files with real values - keep only *.tfvars.example
+# *.tfvars
+# *.tfvars.json
+# !*.tfvars.example
+
+# Saved plans
+*.tfplan
+
+# CLI config that may hold credentials
+.terraformrc
+terraform.rc

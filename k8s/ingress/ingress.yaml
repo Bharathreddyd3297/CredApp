@@ -1,0 +1,65 @@
+# =====================================================================
+# CredPay Ingress - single entry point, path-based routing
+# =====================================================================
+# Routing (order matters - most specific paths first):
+#   /api/payment  -> payment-service:8000   (FastAPI)
+#   /api/users    -> user-service:8080      (Spring Boot)
+#   /api/cards    -> user-service:8080      (Spring Boot)
+#   /             -> frontend:80            (React SPA)
+#
+# Because everything is same-origin behind this Ingress, the browser makes
+# relative calls (/api/...) and CORS is not needed. Build the frontend with
+# empty VITE_USER_API_URL / VITE_PAYMENT_API_URL so axios uses relative URLs.
+#
+# Assumes the ingress-nginx controller is installed. TLS via cert-manager
+# is prepared below but commented until a ClusterIssuer exists.
+# =====================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: credpay
+  namespace: credpay
+  labels:
+    app.kubernetes.io/part-of: credpay
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - credpay.example.com
+  #     secretName: credpay-tls
+  rules:
+    - host: credpay.example.com
+      http:
+        paths:
+          - path: /api/payment
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 8000
+          - path: /api/users
+            pathType: Prefix
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 8080
+          - path: /api/cards
+            pathType: Prefix
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
