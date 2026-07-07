@@ -154,20 +154,20 @@ stages:
     #     workingDirectory: 'terraform'
     #     environmentServiceNameAzureRM: $(azureServiceConnection)
 
-    # - task: TerraformTask@5
-    #   displayName: Terraform Apply
-    #   inputs:
-    #     provider: azurerm
-    #     command: apply
-    #     workingDirectory: terraform
-    #     commandOptions: '--auto-approve'
-    #     environmentServiceNameAzureRM: $(azureServiceConnection)
-      
     - task: TerraformTask@5
-      displayName: Terraform destroy
+      displayName: Terraform Apply
       inputs:
-        provider: 'azurerm'
-        command: 'destroy'
-        workingDirectory: 'terraform'
+        provider: azurerm
+        command: apply
+        workingDirectory: terraform
         commandOptions: '--auto-approve'
         environmentServiceNameAzureRM: $(azureServiceConnection)
+      
+    # - task: TerraformTask@5
+    #   displayName: Terraform destroy
+    #   inputs:
+    #     provider: 'azurerm'
+    #     command: 'destroy'
+    #     workingDirectory: 'terraform'
+    #     commandOptions: '--auto-approve'
+    #     environmentServiceNameAzureRM: $(azureServiceConnection)
