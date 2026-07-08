@@ -35,139 +35,139 @@ variables:
 
 stages:
 
-# # =========================================================
-# # STAGE 1 - BUILD & PUSH DOCKER IMAGES
-# # =========================================================
+# =========================================================
+# STAGE 1 - BUILD & PUSH DOCKER IMAGES
+# =========================================================
 
-# - stage: DockerBuild
-#   displayName: Docker Build & Push
-
-#   jobs:
-
-#   - job: BuildPushImages
-#     displayName: Build Docker Images
-
-#     steps:
-
-#     - checkout: self
-
-#     #########################################################
-#     # Display Build Information
-#     #########################################################
-
-#     - script: |
-#         echo "Repository : $(Build.Repository.Name)"
-#         echo "Branch     : $(Build.SourceBranch)"
-#         echo "Build ID   : $(Build.BuildId)"
-#         echo "Image Tag  : $(tag)"
-#       displayName: Build Information
-
-#     #########################################################
-#     # FRONTEND
-#     #########################################################
-
-#     - task: Docker@2
-#       displayName: Build & Push Frontend Image
-
-#       inputs:
-#         command: buildAndPush
-#         containerRegistry: $(acrServiceConnection)
-#         repository: $(frontendRepository)
-#         dockerfile: frontend-react/Dockerfile
-#         buildContext: frontend-react
-
-#         tags: |
-#           $(tag)
-#           latest
-
-#     #########################################################
-#     # USER SERVICE
-#     #########################################################
-
-#     - task: Docker@2
-#       displayName: Build & Push User Service Image
-
-#       inputs:
-#         command: buildAndPush
-#         containerRegistry: $(acrServiceConnection)
-#         repository: $(userRepository)
-#         dockerfile: user-service/Dockerfile
-#         buildContext: user-service
-
-#         tags: |
-#           $(tag)
-#           latest
-
-#     #########################################################
-#     # PAYMENT SERVICE
-#     #########################################################
-
-#     - task: Docker@2
-#       displayName: Build & Push Payment Service Image
-
-#       inputs:
-#         command: buildAndPush
-#         containerRegistry: $(acrServiceConnection)
-#         repository: $(paymentRepository)
-#         dockerfile: payment-service/Dockerfile
-#         buildContext: payment-service
-
-#         tags: |
-#           $(tag)
-#           latest
-
-- stage: Terraform
-  displayName: Terraform Infrastructure
-
-  # dependsOn: BuildAndPush
+- stage: DockerBuild
+  displayName: Docker Build & Push
 
   jobs:
 
-  - job: TerraformApply
-    displayName: Terraform Apply
+  - job: BuildPushImages
+    displayName: Build Docker Images
 
     steps:
 
     - checkout: self
 
-    - task: TerraformInstaller@1
-      displayName: Install Terraform
-      inputs:
-        terraformVersion: latest
+    #########################################################
+    # Display Build Information
+    #########################################################
 
-    - task: TerraformTask@5
-      displayName: Terraform Init
-      inputs:
-        provider: azurerm
-        command: init
-        workingDirectory: terraform
-        backendServiceArm: $(azureServiceConnection)
-        backendAzureRmResourceGroupName: $(tfStateRG)
-        backendAzureRmStorageAccountName: $(tfStateStorage)
-        backendAzureRmContainerName: $(tfStateContainer)
-        backendAzureRmKey: $(tfStateKey)
+    - script: |
+        echo "Repository : $(Build.Repository.Name)"
+        echo "Branch     : $(Build.SourceBranch)"
+        echo "Build ID   : $(Build.BuildId)"
+        echo "Image Tag  : $(tag)"
+      displayName: Build Information
 
-    # - task: TerraformTask@5
-    #   inputs:
-    #     provider: 'azurerm'
-    #     command: 'plan'
-    #     workingDirectory: 'terraform'
-    #     environmentServiceNameAzureRM: $(azureServiceConnection)
+    #########################################################
+    # FRONTEND
+    #########################################################
 
-    - task: TerraformTask@5
-      displayName: Terraform Apply
+    - task: Docker@2
+      displayName: Build & Push Frontend Image
+
       inputs:
-        provider: azurerm
-        command: apply
-        workingDirectory: terraform
-        commandOptions: '--auto-approve'
-        environmentServiceNameAzureRM: $(azureServiceConnection)
+        command: buildAndPush
+        containerRegistry: $(acrServiceConnection)
+        repository: $(frontendRepository)
+        dockerfile: frontend-react/Dockerfile
+        buildContext: frontend-react
+
+        tags: |
+          $(tag)
+          latest
+
+    #########################################################
+    # USER SERVICE
+    #########################################################
+
+    - task: Docker@2
+      displayName: Build & Push User Service Image
+
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(acrServiceConnection)
+        repository: $(userRepository)
+        dockerfile: user-service/Dockerfile
+        buildContext: user-service
+
+        tags: |
+          $(tag)
+          latest
+
+    #########################################################
+    # PAYMENT SERVICE
+    #########################################################
+
+    - task: Docker@2
+      displayName: Build & Push Payment Service Image
+
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(acrServiceConnection)
+        repository: $(paymentRepository)
+        dockerfile: payment-service/Dockerfile
+        buildContext: payment-service
+
+        tags: |
+          $(tag)
+          latest
+
+# - stage: Terraform
+#   displayName: Terraform Infrastructure
+
+#   # dependsOn: BuildAndPush
+
+#   jobs:
+
+#   - job: TerraformApply
+#     displayName: Terraform Apply
+
+#     steps:
+
+#     - checkout: self
+
+#     - task: TerraformInstaller@1
+#       displayName: Install Terraform
+#       inputs:
+#         terraformVersion: latest
+
+#     - task: TerraformTask@5
+#       displayName: Terraform Init
+#       inputs:
+#         provider: azurerm
+#         command: init
+#         workingDirectory: terraform
+#         backendServiceArm: $(azureServiceConnection)
+#         backendAzureRmResourceGroupName: $(tfStateRG)
+#         backendAzureRmStorageAccountName: $(tfStateStorage)
+#         backendAzureRmContainerName: $(tfStateContainer)
+#         backendAzureRmKey: $(tfStateKey)
+
+#     # - task: TerraformTask@5
+#     #   inputs:
+#     #     provider: 'azurerm'
+#     #     command: 'plan'
+#     #     workingDirectory: 'terraform'
+#     #     environmentServiceNameAzureRM: $(azureServiceConnection)
+
+#     - task: TerraformTask@5
+#       displayName: Terraform Apply
+#       inputs:
+#         provider: azurerm
+#         command: apply
+#         workingDirectory: terraform
+#         commandOptions: '--auto-approve'
+#         environmentServiceNameAzureRM: $(azureServiceConnection)
       
-    # - task: TerraformTask@5
-    #   displayName: Terraform destroy
-    #   inputs:
-    #     provider: 'azurerm'
-    #     command: 'destroy'
-    #     workingDirectory: 'terraform'
-    #     commandOptions: '--auto-approve'
-    #     environmentServiceNameAzureRM: $(azureServiceConnection)
+#     # - task: TerraformTask@5
+#     #   displayName: Terraform destroy
+#     #   inputs:
+#     #     provider: 'azurerm'
+#     #     command: 'destroy'
+#     #     workingDirectory: 'terraform'
+#     #     commandOptions: '--auto-approve'
+#     #     environmentServiceNameAzureRM: $(azureServiceConnection)
