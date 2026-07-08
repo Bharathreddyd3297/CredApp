@@ -62,8 +62,13 @@ spec:
             limits:
               cpu: "200m"
               memory: "128Mi"
+          # NOTE: no `capabilities: drop: ["ALL"]` here (unlike the backends).
+          # nginx:stable-alpine's root master process calls chown() on its
+          # cache dirs (/var/cache/nginx/*) at startup to hand them to the
+          # unprivileged "nginx" worker user - that chown() requires
+          # CAP_CHOWN. Dropping ALL capabilities (even while still UID 0)
+          # removes CAP_CHOWN too, which crashes the container with
+          # "nginx: [emerg] chown(...) failed (Operation not permitted)".
+          # Confirmed by testing directly against the live AKS cluster.
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-              add: ["NET_BIND_SERVICE"]

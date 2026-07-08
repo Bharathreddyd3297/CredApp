@@ -1,5 +1,15 @@
 # Stage 1 — Make CredPay Run on AKS (Manual Deployment)
 
+> **Post-deployment incident (2026-07-08) — see §8 at the end of this
+> document.** After the manifest fixes below were applied, live testing on
+> the actual AKS cluster (`http://4.239.161.142`) surfaced two further
+> issues: a stale-manifest problem (the cluster was still running
+> `imagePullPolicy: IfNotPresent`, so new images were never pulled) and a
+> **regression I introduced myself** in §3.4 (the restored frontend
+> `securityContext` crash-loops `nginx:stable-alpine`). Both are now fixed
+> and verified end-to-end against the live cluster. Read §8 first if you're
+> reviewing what happened today.
+
 This document records every change made to take CredPay from "pods are
 running but the app doesn't work" to "fully functional inside AKS via manual
 `kubectl apply`". It is written to double as teaching material: every change
@@ -142,6 +152,14 @@ On a manual-deployment workflow (`kubectl apply` + `kubectl rollout restart`),
 a node that already ran `credpay/frontend:latest` before would silently keep
 serving the **old** code after a fresh push, even though ACR has the new
 image. Changed to `imagePullPolicy: Always`.
+
+> **Correction (2026-07-08, see §8):** the `securityContext` restored above
+> (`capabilities: drop: ["ALL"], add: ["NET_BIND_SERVICE"]`) turned out to
+> crash-loop the container against the real `nginx:stable-alpine` image —
+> confirmed live on the AKS cluster. It has since been **removed** and
+> replaced with `allowPrivilegeEscalation: false` only. The analysis above
+> (that dropping capabilities is safe alongside `runAsNonRoot: false`) was
+> wrong for this specific image; §8 explains why.
 
 ### 3.5 / 3.6 `k8s/user-service/deployment.yaml`, `k8s/payment-service/deployment.yaml`
 
@@ -405,6 +423,148 @@ Browse to `http://<INGRESS_IP>/` and confirm:
 |--------|--------------|
 | `api.js` relative URLs | **The actual fix.** Lets one image work behind any Ingress IP, with no absolute backend URL ever baked into the bundle. |
 | `.env.example` / README docs | Prevents the fix from being silently undone by someone adding a `.env` with `localhost` values for "convenience". |
-| Frontend `securityContext` restored | Keeps the required root nginx process at least-privilege (capabilities dropped except `NET_BIND_SERVICE`), consistent with the namespace's `baseline` Pod Security level. |
+| Frontend `securityContext` (`allowPrivilegeEscalation: false` only) | Least-privilege hardening that doesn't fight `nginx:stable-alpine`'s need for `CAP_CHOWN` at startup — see §8. |
 | `imagePullPolicy: Always` (all 3 Deployments) | Guarantees `kubectl rollout restart` actually deploys the image just pushed to ACR, instead of silently reusing a stale cached one — critical for a manual-deploy workflow. |
 | `k8s/README.md` accuracy fixes | Keeps the runbook trustworthy for whoever deploys next (a teammate, a student, or future-you in Stage 2). |
+
+---
+
+## 8. Post-deployment incident — live AKS diagnosis (2026-07-08)
+
+**Symptom reported:** manifests applied, all pods `Running`, but creating a
+new user from the browser at `http://4.239.161.142/register` failed.
+
+### 8.1 Investigation
+
+With direct `kubectl`/`az` access to the live cluster and ACR:
+
+1. `kubectl get pods -n credpay` — all 6 pods `Running`/`1/1` Ready. Not a
+   crash or scheduling problem.
+2. `kubectl logs deployment/user-service` — started cleanly, HikariCP
+   connected to PostgreSQL successfully. No errors.
+3. Direct `curl -X POST http://4.239.161.142/api/users/register` (bypassing
+   the browser) — **succeeded**, `200 {"message":"User registered
+   successfully"}`. This immediately proved the Ingress → user-service →
+   PostgreSQL path was healthy, and pointed at something **browser-specific**
+   — i.e., the frontend JS bundle itself.
+4. Downloaded the live JS bundle actually being served
+   (`curl http://4.239.161.142/assets/index-*.js`) and grepped it:
+   found `A3="http://localhost:8080"` and `j3="http://localhost:8000"` —
+   the pre-fix code, still live.
+5. Compared image digests: `kubectl get pods -o jsonpath='{...imageID}'`
+   showed the running frontend pods on digest `sha256:d96b2c4c...`
+   (built **2026-06-30**), while `az acr repository show-manifests` showed
+   the latest pushed digest was `sha256:9b14b625...` (built **today**,
+   09:42 UTC, and confirmed via `git show HEAD:frontend-react/src/services/api.js`
+   to contain the relative-URL fix).
+6. Checked the **live** Deployment spec (not the repo file):
+   `kubectl get deployment frontend -o jsonpath='{...imagePullPolicy}'` →
+   `IfNotPresent`. Same check on `user-service` and `payment-service`
+   showed the identical problem — all three were still running their
+   2026-06-30 images.
+
+### 8.2 Root cause #1 — cluster manifests were out of sync with the repo
+
+The `imagePullPolicy: Always` fix from §3.4/3.5/3.6 existed in the Git
+repo, but **had never been re-applied to the cluster** with `kubectl apply`.
+The live Deployments still had the old `IfNotPresent` policy from an earlier
+`kubectl apply`, so even though the pipeline pushed fresh `:latest` images
+today, the nodes kept serving their locally-cached June 30 images. This is
+exactly the failure mode §3.4 predicted — it just hadn't been re-deployed
+yet to take effect.
+
+**Fix applied live:** `kubectl apply -f k8s/frontend/deployment.yaml`,
+same for `user-service` and `payment-service`. This changed the pod template
+(pull policy), which triggered an automatic rolling restart.
+
+### 8.3 Root cause #2 — a bug in this session's own fix
+
+Applying the frontend Deployment triggered a new rollout, which immediately
+**crash-looped**:
+
+```
+2026/07/08 10:10:55 [emerg] 1#1: chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+nginx: [emerg] chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+```
+
+This was caused by the `securityContext` restored in §3.4 of this same
+document:
+
+```yaml
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+    add: ["NET_BIND_SERVICE"]
+```
+
+**Why it broke:** `nginx:stable-alpine`'s master process runs as root
+(UID 0, per the pod-level `runAsNonRoot: false`) specifically so it can
+`chown()` its cache directories (`/var/cache/nginx/client_temp` and
+friends) to the unprivileged `nginx` user before forking worker processes.
+Linux capability checks apply **even to UID 0** — dropping `ALL` capabilities
+strips `CAP_CHOWN` along with everything else, so that `chown()` call is
+denied regardless of the process's UID. Adding back only `NET_BIND_SERVICE`
+(for binding port 80) was not enough; `CAP_CHOWN` was also needed and was
+not restored. The original in-progress edit that this session "restored"
+had actually removed this block for a good, if undocumented, reason.
+
+**Fix:** removed the `capabilities` block entirely, keeping only
+`allowPrivilegeEscalation: false` (which is unrelated to the chown behavior
+and safe to keep). Re-applied and confirmed the new pod reached
+`Running` / `1/1 Ready` with no restarts.
+
+### 8.4 Verification performed against the live cluster
+
+- `kubectl rollout status` — all three Deployments reported
+  `successfully rolled out`.
+- `kubectl get pods -o jsonpath='{...imageID}'` — frontend pods now report
+  digest `sha256:9b14b625...`, matching today's fixed build.
+- Old and intermediate (crash-looping) ReplicaSets confirmed scaled to
+  `0/0/0` by `kubectl get rs` — no stray pods left behind.
+- Downloaded the **new** live JS bundle and grepped it: zero `localhost`
+  matches.
+- Ran the full flow directly against `http://4.239.161.142` (same path a
+  browser takes through the Ingress): **register → login → add card → pay
+  → payment history** — every step returned a correct, successful response
+  (`TXN20260708001`, `SUCCESS`, `250.5`), and the history read-back
+  correctly returned the transaction just created.
+- Data persistence in PostgreSQL was confirmed **indirectly**: the login
+  call in a separate HTTP request found the user created by the register
+  call moments earlier, and the payment-history call found the payment just
+  created — both required a round trip through the shared Postgres database,
+  not per-pod memory. A direct `psql` query against the production database
+  was intentionally **not** run in this session (it would require decoding
+  the live `credpay-db` Secret to query production data, which needs your
+  explicit go-ahead) — see §8.5 if you'd like to run that check yourself.
+
+### 8.5 Optional: verify directly in PostgreSQL
+
+If you want to confirm at the database layer yourself:
+
+```powershell
+$DBPASS = kubectl get secret credpay-db -n credpay -o jsonpath='{.data.DB_PASSWORD}' | ... base64 -d
+kubectl run psql-verify --rm -it --restart=Never -n credpay `
+  --image=postgres:16-alpine --env="PGPASSWORD=$DBPASS" -- `
+  psql "host=psql-credpay.postgres.database.azure.com port=5432 dbname=credpay user=credpayadmin sslmode=require" `
+  -c "select id, full_name, email from users order by id desc limit 5;" `
+  -c "select id, user_id, transaction_id, amount, status from payments order by id desc limit 5;"
+```
+
+### 8.6 Files changed in this incident (in addition to §2's list)
+
+| File | Change |
+|---|---|
+| `k8s/frontend/deployment.yaml` | Removed `capabilities: drop: ["ALL"], add: ["NET_BIND_SERVICE"]`; kept `allowPrivilegeEscalation: false`. |
+| *(live cluster only, not a file)* | Re-applied `k8s/frontend/deployment.yaml`, `k8s/user-service/deployment.yaml`, `k8s/payment-service/deployment.yaml` to sync the running cluster with the repo. |
+
+### 8.7 Action item for you
+
+**The cluster now matches the repo and is verified working end-to-end via
+curl.** Please do a final check in an actual browser at
+`http://4.239.161.142/register` to confirm the UI itself behaves correctly
+(this session validated the API/Ingress/DB path directly; it did not drive
+a real browser). Also worth remembering going forward: **any time the K8s
+YAML in the repo changes, it must be re-applied with `kubectl apply`** —
+pushing to Git and rebuilding images alone does not update a running
+cluster.
