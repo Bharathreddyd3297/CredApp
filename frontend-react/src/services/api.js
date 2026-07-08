@@ -3,14 +3,24 @@ import axios from 'axios';
 /**
  * Centralized API layer for CREDPAY.
  *
- *  - userApi    -> Spring Boot User Service    (default http://localhost:8080)
- *  - paymentApi -> FastAPI Payment Service     (default http://localhost:8000)
+ *  - userApi    -> Spring Boot User Service    (/api/users, /api/cards)
+ *  - paymentApi -> FastAPI Payment Service     (/api/payment)
  *
- * Base URLs can be overridden via Vite env vars (see .env.example).
+ * Base URLs default to '' (relative). Behind the Kubernetes Ingress, the
+ * frontend, user-service and payment-service are all reached through the
+ * SAME origin (the Ingress IP), so relative calls like `/api/users/login`
+ * resolve correctly without CORS. Vite env vars (see .env.example) only need
+ * to be set for local development, where the Vite dev server (:5173) calls
+ * the backends directly on different ports/origins.
+ *
+ * NOTE: Vite inlines VITE_* env vars at BUILD time, not at container
+ * runtime. Never bake an absolute backend URL into the production image -
+ * leave these unset (the default) so the same image works behind any
+ * Ingress IP/hostname.
  */
 
-const USER_BASE_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:8080';
-const PAYMENT_BASE_URL = import.meta.env.VITE_PAYMENT_API_URL || 'http://localhost:8000';
+const USER_BASE_URL = import.meta.env.VITE_USER_API_URL || '';
+const PAYMENT_BASE_URL = import.meta.env.VITE_PAYMENT_API_URL || '';
 
 export const userApi = axios.create({
   baseURL: USER_BASE_URL,

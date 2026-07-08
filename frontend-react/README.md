@@ -64,10 +64,16 @@ App: **http://localhost:5173** (opens automatically).
 
 ## Backend configuration
 
-The app talks to two backends (defaults shown). Override by copying
-`.env.example` to `.env`:
+The app talks to two backends. By default (no `.env` file), API calls use
+**relative URLs** (e.g. `/api/users/login`), which is what Docker/AKS builds
+need: behind the Kubernetes Ingress, the frontend and both backends share the
+same origin, so relative paths route correctly with no CORS.
 
-| Service | Default URL |
+For **local development** with `npm run dev`, the Vite dev server (`:5173`)
+must call the backends directly on their own ports. Copy `.env.example` to
+`.env` to enable this:
+
+| Service | Local dev URL (via `.env`) |
 |---|---|
 | User Service (Spring Boot) | `http://localhost:8080` |
 | Payment Service (FastAPI) | `http://localhost:8000` |
@@ -168,5 +174,7 @@ docker rmi credpay-frontend:v1
   hashed assets under `/assets` are cached for a year, and directory listing
   is disabled.
 - The container serves a **static build**. API base URLs are baked in at build
-  time from Vite env vars (`VITE_USER_API_URL`, `VITE_PAYMENT_API_URL`); to
-  point at different backends, rebuild with those values set.
+  time from Vite env vars (`VITE_USER_API_URL`, `VITE_PAYMENT_API_URL`). Leave
+  them unset for Docker/AKS builds (the default - relative URLs behind the
+  Ingress); only set them to rebuild an image that calls fixed, absolute
+  backend URLs.

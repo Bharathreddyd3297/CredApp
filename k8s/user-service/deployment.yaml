@@ -29,9 +29,7 @@ spec:
       labels:
         app.kubernetes.io/name: user-service
         app.kubernetes.io/part-of: credpay
-        azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: credpay-workload-sa
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -43,9 +41,13 @@ spec:
           emptyDir: {}
       containers:
         - name: user-service
-          # Replace <ACR_LOGIN_SERVER> with: terraform output -raw acr_login_server
-          image: <ACR_LOGIN_SERVER>/credpay/user-service:latest
-          imagePullPolicy: IfNotPresent
+          # Images live in the existing ACR (credproj.azurecr.io). AKS is
+          # attached to it via: az aks update --attach-acr credproj
+          image: credproj.azurecr.io/credpay/user-service:latest
+          # "Always" because the tag is the mutable `:latest` - IfNotPresent
+          # would let a node keep serving a stale cached image after a fresh
+          # push + `kubectl rollout restart`.
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080

@@ -11,8 +11,9 @@
 # relative calls (/api/...) and CORS is not needed. Build the frontend with
 # empty VITE_USER_API_URL / VITE_PAYMENT_API_URL so axios uses relative URLs.
 #
-# Assumes the ingress-nginx controller is installed. TLS via cert-manager
-# is prepared below but commented until a ClusterIssuer exists.
+# Assumes the ingress-nginx controller is installed. Phase 1 has NO host and
+# NO TLS: the app is reached directly over HTTP at the ingress controller's
+# public LoadBalancer IP. A DNS name + TLS can be added in a later phase.
 # =====================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -22,18 +23,14 @@ metadata:
   labels:
     app.kubernetes.io/part-of: credpay
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # No TLS in Phase 1, so do not force an HTTP->HTTPS redirect - that would
+    # break plain-HTTP access via the LoadBalancer IP.
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/use-regex: "true"
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
-  # tls:
-  #   - hosts:
-  #       - credpay.example.com
-  #     secretName: credpay-tls
   rules:
-    - host: credpay.example.com
-      http:
+    - http:
         paths:
           - path: /api/payment
             pathType: Prefix
