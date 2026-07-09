@@ -3,11 +3,17 @@
 # =====================================================================
 # Blue/Green: `version` picks which color (frontend-blue / frontend-green)
 # receives live traffic. "blue" below is only the bootstrap default for a
-# brand new cluster. After that, the pipeline flips it with
-# `kubectl patch svc frontend ... -p '{"spec":{"selector":{"version":"..."}}}'`
-# once the new color passes its smoke test - re-applying this file is safe
-# and will NOT revert the patch, because `kubectl apply` only overwrites a
-# field when this file's own value for it has actually changed.
+# brand new cluster - apply this file ONCE to create the Service.
+#
+# After that, do NOT `kubectl apply` this file again: it was confirmed
+# live that re-applying it resets spec.selector.version back to "blue"
+# even when the file is byte-for-byte unchanged (kubectl apply's 3-way
+# merge does not leave this field alone the way you might expect). Once
+# the Service exists, its selector is owned exclusively by
+# `kubectl patch svc frontend ... -p '{"spec":{"selector":{"version":"..."}}}'`,
+# run by the pipeline's "Switch Traffic" step after a new color passes
+# its smoke test. See azure-pipelines.yml's "Deploy Frontend" step and
+# STAGE2-CHANGES.md §2.5 for the full story.
 # =====================================================================
 apiVersion: v1
 kind: Service

@@ -364,6 +364,16 @@ stages:
     # Detect which color is currently live (the frontend Service's
     # `version` selector), then roll the freshly-pushed :latest image
     # out to the OTHER color only. The live color is left untouched.
+    #
+    # IMPORTANT: `kubectl apply -f service.yaml` was confirmed (live, on
+    # this cluster) to reset spec.selector.version back to the file's
+    # hardcoded "blue" default on every run, even though the file itself
+    # never changed - silently defeating the whole rotation (every run
+    # would see "blue" and redeploy to "green" again). Fix: only ever
+    # apply the static service.yaml once, to bootstrap the Service on a
+    # brand new cluster. Once it exists, its selector is owned exclusively
+    # by the "Switch Traffic" step's `kubectl patch`, below - never by
+    # `apply` again.
     #########################################################
     - task: AzureCLI@2
       displayName: Deploy Frontend (Blue/Green - new version)
@@ -375,20 +385,24 @@ stages:
         inlineScript: |
           set -e
 
-          kubectl apply -f k8s/frontend/service.yaml
+          if ! kubectl get svc frontend -n $(k8sNamespace) >/dev/null 2>&1; then
+            echo "frontend Service doesn't exist yet - bootstrapping it (default color: blue)"
+            kubectl apply -f k8s/frontend/service.yaml
+          fi
+
           kubectl apply -f k8s/frontend/deployment-blue.yaml
           kubectl apply -f k8s/frontend/deployment-green.yaml
           kubectl apply -f k8s/frontend/hpa-blue.yaml
           kubectl apply -f k8s/frontend/hpa-green.yaml
 
-          CURRENT_COLOR=$(kubectl get svc frontend -n $(k8sNamespace) -o jsonpath='{.spec.selector.version}' 2>/dev/null || true)
+          CURRENT_COLOR=$(kubectl get svc frontend -n $(k8sNamespace) -o jsonpath='{.spec.selector.version}')
           if [ "$CURRENT_COLOR" = "blue" ]; then
             NEW_COLOR="green"
           else
             NEW_COLOR="blue"
           fi
 
-          echo "Current active color : ${CURRENT_COLOR:-none (first-ever deployment)}"
+          echo "Current active color : $CURRENT_COLOR"
           echo "Deploying new version to : $NEW_COLOR"
 
           kubectl rollout restart deployment/frontend-$NEW_COLOR -n $(k8sNamespace)

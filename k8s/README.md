@@ -211,7 +211,10 @@ whichever color is **not** currently live, smoke-test it directly, and only
 flip the Service selector if that passes:
 
 ```bash
-kubectl apply -f frontend/service.yaml
+# 0. Bootstrap ONLY - apply this once, the very first time the Service
+#    doesn't exist yet. Do NOT re-run this on every deploy (see warning below).
+kubectl get svc frontend -n credpay >/dev/null 2>&1 || kubectl apply -f frontend/service.yaml
+
 kubectl apply -f frontend/deployment-blue.yaml
 kubectl apply -f frontend/deployment-green.yaml
 kubectl apply -f frontend/hpa-blue.yaml
@@ -237,10 +240,13 @@ If the smoke test fails, skip step 4 — `$CURRENT` keeps serving traffic and th
 broken `$NEW` Deployment is left running (not deleted) so it can be inspected
 with `kubectl logs deployment/frontend-$NEW -n credpay`.
 
-> Re-applying `frontend/service.yaml` after a flip is safe: `kubectl apply`
-> only overwrites a field when the *file's own* value for it changed since the
-> last apply, so it will not silently revert `selector.version` back to the
-> file's bootstrap default (`blue`).
+> **Do not `kubectl apply -f frontend/service.yaml` on every deploy.** It was
+> confirmed live on this cluster that re-applying it resets
+> `spec.selector.version` back to the file's hardcoded `blue` default, even
+> though the file itself never changed - which silently breaks the whole
+> rotation (every run would see "blue" and redeploy to "green" again). Once
+> the Service exists, its selector is owned exclusively by the `kubectl patch`
+> in step 4 above - see `STAGE2-CHANGES.md` §2.5 for how this was found.
 
 ## Health checks & smoke test
 

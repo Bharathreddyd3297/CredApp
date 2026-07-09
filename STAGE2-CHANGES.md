@@ -158,13 +158,61 @@ unaffected because they connect to the pod IP directly, never through
 backend checks (`user-service`/`payment-service` cluster-DNS names) were
 never affected - CoreDNS only returns IPv4 A records for those Services.
 
-**Cleanup noted, not yet done:** the pre-blue/green `frontend` Deployment
-and its `frontend` HPA (2 pods, running for 2 days before this session)
-are now orphaned - they carry no `version` label, so the new `frontend`
-Service selector (`app.kubernetes.io/name=frontend,version=blue`) never
-matches them and they receive zero traffic. Safe to
-`kubectl delete deployment frontend -n credpay && kubectl delete hpa frontend -n credpay`
-once someone confirms nothing else depends on them.
+**Cleanup done:** the pre-blue/green `frontend` Deployment and its
+`frontend` HPA (2 pods, running for 2 days before this session) were
+orphaned - no `version` label, so the new `frontend` Service selector
+never matched them and they received zero traffic. Deleted with
+`kubectl delete deployment frontend -n credpay && kubectl delete hpa frontend -n credpay`,
+confirmed via `kubectl get pods`/`get hpa` afterward.
+
+### 2.5 Blue/green never actually alternated - `kubectl apply` was silently resetting the color every run
+
+**Symptom:** after a run that should have deployed to `blue` (since
+`green` was confirmed live beforehand), the live cluster showed the
+opposite: `frontend-green` had a fresh ReplicaSet (a few minutes old) while
+`frontend-blue` was untouched (unchanged since the prior run), and the
+Service selector still read `green`. The rotation had silently redeployed
+to the *same* color that was already live, instead of the idle one.
+
+**Root cause, confirmed empirically (not just reasoned about) on the live
+cluster:**
+```bash
+kubectl get svc frontend -n credpay -o jsonpath='{.spec.selector}'
+# -> {"app.kubernetes.io/name":"frontend","version":"green"}
+
+kubectl apply -f k8s/frontend/service.yaml   # file is byte-for-byte unchanged
+kubectl get svc frontend -n credpay -o jsonpath='{.spec.selector}'
+# -> {"app.kubernetes.io/name":"frontend","version":"blue"}   <- reset!
+```
+The "Deploy Frontend" step ran `kubectl apply -f k8s/frontend/service.yaml`
+*before* reading the current color, on the (incorrect) assumption from
+earlier in this project that `kubectl apply`'s three-way merge would leave
+an already-`kubectl patch`ed field alone as long as the file itself hadn't
+changed. It doesn't, in practice, for this field - the apply always reset
+`selector.version` to the file's hardcoded `blue` default first. So every
+run always read `CURRENT_COLOR=blue` and always computed `NEW_COLOR=green`,
+regardless of what was actually live. The very first run happened to look
+correct by coincidence (the live value genuinely was `blue` at that point).
+
+**Fix:** stop re-applying `k8s/frontend/service.yaml` on every run.
+`azure-pipelines.yml`'s "Deploy Frontend" step now only applies it if the
+Service doesn't exist yet (`kubectl get svc frontend ... || kubectl apply
+-f k8s/frontend/service.yaml`) - a true one-time bootstrap. From then on,
+the selector is owned exclusively by the "Switch Traffic" step's
+`kubectl patch`. Mirrored the same fix into `k8s/README.md`'s manual
+instructions and corrected the now-wrong claim in `k8s/frontend/service.yaml`'s
+own header comment (it previously asserted re-applying was safe - it isn't).
+Re-verified the fixed logic directly against the live cluster before
+trusting it (same discipline as §2.4).
+
+**Side effect during investigation, also fixed:** reproducing this live
+(the `kubectl apply` test shown above) actually flipped live traffic from
+`green` to `blue` mid-investigation - briefly serving the pre-headline-change
+frontend build again. Caught immediately and reverted with
+`kubectl patch service frontend -n credpay --type merge -p
+'{"spec":{"selector":{"version":"green"}}}'`, confirmed via
+`kubectl get endpoints frontend -n credpay` matching the green pods' IPs
+again. No action was taken on the live cluster without flagging it first.
 
 ---
 
@@ -186,5 +234,16 @@ The full `DeployToAKS` stage then ran end-to-end through the blue/green
 rollout and correctly held traffic on `frontend-blue` when the smoke test
 in §2.4 failed - proving the "don't switch on failure" safety behavior
 works as designed on a live cluster, not just in theory. With the
-`127.0.0.1` fix in place, the next pipeline run should get past the smoke
-test and reach the traffic switch + final validation steps.
+`127.0.0.1` fix in place, the next run got past the smoke test and
+switched live traffic to `green` for the first time - confirmed end-to-end
+via the Ingress: `GET /`, `/api/users/health`, `/api/payment/health` all
+returned `200`.
+
+A follow-up run (new frontend copy + animation) is what surfaced §2.5:
+the rotation logic silently redeployed to `green` again instead of the
+truly-idle `blue`, caught by checking pod ages/ReplicaSet hashes directly
+against the live cluster rather than trusting the pipeline log alone. With
+that fix in place, the rotation should now correctly alternate blue ↔ green
+on every run going forward - worth confirming on the next deploy by
+checking that "Deploying new version to" alternates and that the idle
+color's pods actually get a fresh ReplicaSet each time.
