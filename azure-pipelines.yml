@@ -514,9 +514,6 @@ stages:
           kubectl get svc frontend -n $(k8sNamespace) -o jsonpath='{.spec.selector}'
           echo
 
-          ACTIVE_COLOR=$(kubectl get svc frontend -n $(k8sNamespace) -o jsonpath='{.spec.selector.version}')
-          echo "Current environment is: $(echo $ACTIVE_COLOR | tr '[:lower:]' '[:upper:]')"
-
           echo "===== Current Images ====="
           kubectl get deployments -n $(k8sNamespace) \
             -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].image}{"\n"}{end}'
@@ -530,3 +527,10 @@ stages:
           else
             echo "Ingress controller has no public IP yet - skipping external check."
           fi
+
+          ACTIVE_COLOR=$(kubectl get svc frontend -n $(k8sNamespace) -o jsonpath='{.spec.selector.version}')
+          ACTIVE_COLOR_UPPER=$(echo $ACTIVE_COLOR | tr '[:lower:]' '[:upper:]')
+          echo ""
+          echo "=================================================="
+          echo " PROD ENVIRONMENT IS CURRENTLY RUNNING ON: $ACTIVE_COLOR_UPPER"
+          echo "=================================================="

@@ -51,7 +51,7 @@ export default function LoginPage() {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex' }}>
       <AuthBranding
-        heading="Credit card payments are so simple"
+        heading="One Stop for All CC payments"
         subheading="Manage premium cards and pay bills with a seamless, secure experience."
       />
 
