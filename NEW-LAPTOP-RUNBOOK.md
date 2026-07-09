@@ -288,6 +288,9 @@ terraform {
 
 ### 6.3 `terraform/terraform.tfvars`
 
+This file is **committed to git in this repo** (intentionally, for
+classroom simplicity — see `PORTABILITY.md` §A for the full reasoning and
+trade-off). Replace these four values with your own:
 
 ```hcl
 subscription_id = "<SUBSCRIPTION_ID>"
@@ -591,6 +594,14 @@ After this first run, every future `git push` to `main`:
 So a normal day-to-day loop is just: make a change, `git push`, watch the
 pipeline, and check the closing banner to see which color is now live —
 it alternates on every successful push.
+
+**Your data is safe across every one of these pushes.** The "Run Database
+Schema Job" step runs on every deploy too, but `schema.sql` is
+non-destructive — `CREATE TABLE IF NOT EXISTS` plus seed rows that only
+insert into an empty table — so any real user you register, card you add,
+or payment you make through the live app survives every future push
+untouched. Only a genuinely empty, fresh database ever gets the demo seed
+data.
 
 ---
 
