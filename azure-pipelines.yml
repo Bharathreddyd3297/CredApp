@@ -278,10 +278,18 @@ stages:
 
     #########################################################
     # Ensure the ingress-nginx controller is installed - required for the
-    # Ingress manifest applied later to mean anything. `helm upgrade
-    # --install` is create-or-update, so this is a no-op once already
-    # installed. ubuntu-latest Microsoft-hosted agents ship with Helm
-    # preinstalled - no HelmInstaller task needed.
+    # Ingress manifest applied later to mean anything.
+    #
+    # IMPORTANT: check whether the controller already exists (by Service,
+    # not by Helm release) before running `helm upgrade --install`. Confirmed
+    # live that a controller installed some other way (e.g. plain `kubectl
+    # apply` of the static manifests, as this cluster originally was) makes
+    # Helm refuse outright: it won't "adopt" a ServiceAccount it didn't
+    # create, since that ServiceAccount lacks Helm's own ownership
+    # labels/annotations. `helm upgrade --install` is only a safe no-op for
+    # something Helm itself installed - not for "the controller exists at
+    # all, however it got there". ubuntu-latest Microsoft-hosted agents
+    # ship with Helm preinstalled - no HelmInstaller task needed.
     #########################################################
     - task: AzureCLI@2
       displayName: Ensure Ingress Controller Installed
@@ -291,11 +299,16 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -e
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-          helm repo update
-          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx --create-namespace \
-            --wait --timeout 5m
+          if kubectl get svc ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1; then
+            echo "ingress-nginx controller already present - skipping Helm install."
+          else
+            echo "ingress-nginx controller not found - installing via Helm..."
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+            helm repo update
+            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx --create-namespace \
+              --wait --timeout 5m
+          fi
 
           echo "Waiting for the ingress-nginx controller's public IP..."
           for i in $(seq 1 30); do

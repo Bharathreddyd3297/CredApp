@@ -643,6 +643,16 @@ found`** — unlikely on Microsoft-hosted `ubuntu-latest` agents (Helm ships
 preinstalled), but if your organization uses a different/custom agent pool,
 add a `HelmInstaller@1` task immediately before that step.
 
+**That same step fails with `ServiceAccount "ingress-nginx" ... cannot be
+imported into the current release: invalid ownership metadata`** — this
+means an ingress-nginx controller already exists in the cluster but wasn't
+installed via Helm (e.g. someone applied its static YAML manifests by
+hand). The pipeline checks for the controller's `Service` first and only
+runs `helm upgrade --install` if it's missing, specifically to avoid this
+— if you still hit it, the controller likely exists under a different
+Service name than `ingress-nginx-controller`; check with
+`kubectl get svc -n ingress-nginx`.
+
 **Full incident history:** `STAGE1-CHANGES.md` and `STAGE2-CHANGES.md`
 document every issue hit building this project in detail, including root
 cause and fix — worth a read if you hit something not listed above.

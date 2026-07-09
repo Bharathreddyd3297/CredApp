@@ -7,9 +7,10 @@ Terraform stage to run green for the first time, with root cause and fix
 for each. Written to double as teaching material, same as Stage 1.
 
 Scope: `azure-pipelines.yml`, `terraform/modules/keyvault/`, the frontend
-blue/green manifests, and the two additive health endpoints. No Helm, no
-GitOps, no CSI driver, no Workload Identity — still `kubectl apply` and
-`AzureCLI@2`, just triggered by a pipeline instead of by hand.
+blue/green manifests, and the two additive health endpoints. No GitOps, no
+CSI driver, no Workload Identity — still `kubectl apply` and `AzureCLI@2`
+(plus one later addition, `helm`, for the ingress controller - see §2.6),
+just triggered by a pipeline instead of by hand.
 
 ---
 
@@ -222,6 +223,39 @@ this fix (its own push) triggered a run that correctly flipped `green` ->
 color's newest ReplicaSet age against the two commits' push times (67m and
 ~3m respectively) confirmed both flips actually happened as designed. The
 rotation now genuinely alternates on every run.
+
+### 2.6 Automating the Ingress controller install: Helm refused to "adopt" an existing installation
+
+Added two more one-time cluster-setup steps to the pipeline itself
+(previously manual, laptop-run steps in `NEW-LAPTOP-RUNBOOK.md`): "Attach
+ACR to AKS" (`az aks update --attach-acr`) and "Ensure Ingress Controller
+Installed" (`helm upgrade --install ingress-nginx ...`).
+
+**Symptom:** the new Ingress step failed immediately on this cluster:
+```
+Release "ingress-nginx" does not exist. Installing it now.
+Error: Unable to continue with install: ServiceAccount "ingress-nginx" in
+namespace "ingress-nginx" exists and cannot be imported into the current
+release: invalid ownership metadata; label validation error: missing key
+"app.kubernetes.io/managed-by": must be set to "Helm"; ...
+```
+
+**Root cause:** this cluster's ingress-nginx controller was originally
+installed via plain `kubectl apply` of the static manifests (that's how
+every environment in this project was set up before this session), not via
+Helm. Helm 3 refuses to take ownership of a resource it didn't originally
+create - by design, to avoid silently clobbering something unrelated that
+happens to share a name. `helm upgrade --install` is only a safe no-op
+for a release *Helm itself* installed; "the controller already exists,
+however it got there" is a different, broader condition that assumption
+didn't account for.
+
+**Fix:** check for the controller's existence by its `Service` object
+(`kubectl get svc ingress-nginx-controller -n ingress-nginx`), which is
+true regardless of *how* it was installed, and only run `helm upgrade
+--install` if that Service doesn't exist yet. Verified directly against
+the live cluster (the Service already exists here) that the check
+correctly skips the Helm call before trusting it in the pipeline.
 
 ---
 
