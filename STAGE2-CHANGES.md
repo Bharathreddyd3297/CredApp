@@ -214,6 +214,15 @@ frontend build again. Caught immediately and reverted with
 `kubectl get endpoints frontend -n credpay` matching the green pods' IPs
 again. No action was taken on the live cluster without flagging it first.
 
+**Fix confirmed working (2026-07-09, ~19:40):** the commit that introduced
+this fix (its own push) triggered a run that correctly flipped `green` ->
+`blue`. A second, unrelated push ~64 minutes later then correctly flipped
+`blue` -> `green` again - two correct flips in a row, landing back on
+`green`, which briefly looked like "still not fixed" until checking each
+color's newest ReplicaSet age against the two commits' push times (67m and
+~3m respectively) confirmed both flips actually happened as designed. The
+rotation now genuinely alternates on every run.
+
 ---
 
 ## 3. Result
