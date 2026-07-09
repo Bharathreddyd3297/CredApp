@@ -10,8 +10,10 @@
 #     --namespace credpay \
 #     --from-file=schema.sql=../../schema.sql
 #
-# Run this ONCE, after the ConfigMap/Secret exist and BEFORE deploying the
-# backends. Safe to re-run: schema.sql drops/recreates tables (idempotent).
+# Run this after the ConfigMap/Secret exist and BEFORE deploying the
+# backends - and safe to re-run on every later deploy too: schema.sql uses
+# CREATE TABLE IF NOT EXISTS and only seeds sample rows into an empty
+# table, so it never touches real data created through the live app.
 # =====================================================================
 apiVersion: batch/v1
 kind: Job

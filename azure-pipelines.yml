@@ -373,8 +373,10 @@ stages:
 
     #########################################################
     # Database Schema Job - Jobs are immutable, so delete any previous
-    # run before re-applying. Safe to re-run: schema.sql drops/recreates
-    # tables.
+    # run before re-applying. schema.sql is non-destructive (CREATE TABLE
+    # IF NOT EXISTS + seed rows only inserted into an empty table), so
+    # running it again on every deploy never touches real data created
+    # through the live app - only ever matters on a genuinely fresh DB.
     #########################################################
     - task: AzureCLI@2
       displayName: Run Database Schema Job

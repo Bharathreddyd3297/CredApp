@@ -257,6 +257,48 @@ true regardless of *how* it was installed, and only run `helm upgrade
 the live cluster (the Service already exists here) that the check
 correctly skips the Helm call before trusting it in the pipeline.
 
+### 2.7 The schema Job was silently wiping real data on every deploy
+
+**Symptom:** noticed from a pipeline log showing the "Run Database Schema
+Job" step's output on an otherwise-unremarkable run:
+```
+DROP TABLE
+DROP TABLE
+DROP TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE INDEX
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+```
+That `DROP TABLE` x3 followed by the same fixed `INSERT` counts happens on
+**every single deploy**, because `azure-pipelines.yml` runs this Job
+unconditionally on every push, and `schema.sql` opened with
+`DROP TABLE IF EXISTS ... CASCADE`. Every prior doc describing this as
+"safe to re-run" was only ever talking about the Job not *erroring* on a
+second run - never about data survival. In practice: any real user who
+registered, added a card, or made a payment through the live app had all
+of it destroyed and replaced with the same 2 demo users on the very next
+push.
+
+**Fix:** rewrote `schema.sql` to be genuinely non-destructive -
+`CREATE TABLE IF NOT EXISTS` for all three tables, and each sample-data
+`INSERT` guarded with `WHERE NOT EXISTS (SELECT 1 FROM <table>)` so it only
+ever fires once, against an empty table. Verified against a throwaway
+local Postgres instance (not assumed): applied the schema fresh, inserted
+a simulated real user/card/payment, re-applied the schema again, and
+confirmed the row counts and the specific real user were both unchanged
+(`INSERT 0 0` on the second apply, as expected).
+
+Updated every place that described the old behavior:
+`k8s/postgres/schema-init-job.yaml`, `azure-pipelines.yml`'s step comment,
+`k8s/README.md`, and `k8s/explained/04-schema-job.md` (which had
+previously - correctly, at the time - documented this as "destructive,
+only re-run deliberately"; that warning no longer applies).
+
 ---
 
 ## 3. Result

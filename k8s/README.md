@@ -344,7 +344,10 @@ Then browse to `http://<INGRESS_IP>/`.
   mutable `:latest` tag, so `IfNotPresent` would let a node keep running a
   stale cached image after `kubectl rollout restart` - `Always` guarantees
   the freshly-pushed image is pulled every time.
-- The schema Job is **safe to re-run** — `schema.sql` drops/recreates tables.
+- The schema Job is **safe to re-run, non-destructively** — `schema.sql`
+  uses `CREATE TABLE IF NOT EXISTS` and only seeds sample rows into an
+  empty table, so real users/cards/payments created through the live app
+  survive every deploy.
 - Both frontend colors run continuously (nothing is scaled to zero or
   deleted) so a rollback is always just a Service-selector flip away, not a
   redeploy.

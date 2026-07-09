@@ -5,20 +5,20 @@
 -- Tables:   users, cards, payments
 -- Notes:    Schema only. No application code is included here.
 --           Card numbers are stored masked for safety in this demo.
+--
+-- Non-destructive by design: every statement below is safe to re-run
+-- against a database that already has real data in it (tables use
+-- CREATE TABLE IF NOT EXISTS, and the sample rows only insert into an
+-- empty table). This file is applied on every pipeline deploy - it must
+-- never DROP a table, or every real user/card/payment created through
+-- the live app would be destroyed on the next push.
 -- =====================================================================
-
--- ---------------------------------------------------------------------
--- Clean start (safe to re-run). Drop in dependency order.
--- ---------------------------------------------------------------------
-DROP TABLE IF EXISTS payments CASCADE;
-DROP TABLE IF EXISTS cards    CASCADE;
-DROP TABLE IF EXISTS users    CASCADE;
 
 -- ---------------------------------------------------------------------
 -- Table: users
 -- Purpose: Stores registered users for the User Module (Register/Login)
 -- ---------------------------------------------------------------------
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id            BIGSERIAL    PRIMARY KEY,
     full_name     VARCHAR(100) NOT NULL,
     email         VARCHAR(150) NOT NULL UNIQUE,
@@ -30,7 +30,7 @@ CREATE TABLE users (
 -- Table: cards
 -- Purpose: Credit cards belonging to a user (Add Card / View Cards)
 -- ---------------------------------------------------------------------
-CREATE TABLE cards (
+CREATE TABLE IF NOT EXISTS cards (
     id           BIGSERIAL    PRIMARY KEY,
     user_id      BIGINT       NOT NULL,
     card_holder  VARCHAR(100) NOT NULL,
@@ -44,13 +44,13 @@ CREATE TABLE cards (
 );
 
 -- Index to quickly list all cards for a given user
-CREATE INDEX idx_cards_user_id ON cards (user_id);
+CREATE INDEX IF NOT EXISTS idx_cards_user_id ON cards (user_id);
 
 -- ---------------------------------------------------------------------
 -- Table: payments
 -- Purpose: Simulated payments (amount + UPI ID + status)
 -- ---------------------------------------------------------------------
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
     id          BIGSERIAL      PRIMARY KEY,
     user_id     BIGINT         NOT NULL,
     card_id     BIGINT,                              -- optional: card used for the payment
@@ -67,28 +67,39 @@ CREATE TABLE payments (
 );
 
 -- Index to quickly fetch a user's payment history
-CREATE INDEX idx_payments_user_id ON payments (user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
 
 -- =====================================================================
--- Sample Data
+-- Sample Data - inserted ONCE, only while each table is still empty.
+-- On every later run these INSERTs are no-ops (each table already has
+-- rows), so real data created through the app is never touched.
 -- =====================================================================
 
 -- Users (password_hash values are placeholders representing hashed passwords)
-INSERT INTO users (full_name, email, password_hash) VALUES
+INSERT INTO users (full_name, email, password_hash)
+SELECT * FROM (VALUES
     ('Asha Verma',  'asha@example.com',  '$2a$10$hashPlaceholderForAsha000000000000000000000000'),
-    ('Rohit Kumar', 'rohit@example.com', '$2a$10$hashPlaceholderForRohit00000000000000000000000');
+    ('Rohit Kumar', 'rohit@example.com', '$2a$10$hashPlaceholderForRohit00000000000000000000000')
+) AS seed(full_name, email, password_hash)
+WHERE NOT EXISTS (SELECT 1 FROM users);
 
--- Cards (linked to the users above)
-INSERT INTO cards (user_id, card_holder, card_number, card_network, expiry_month, expiry_year) VALUES
+-- Cards (linked to the seed users above - only meaningful on the very first run)
+INSERT INTO cards (user_id, card_holder, card_number, card_network, expiry_month, expiry_year)
+SELECT * FROM (VALUES
     (1, 'Asha Verma',  '**** **** **** 1234', 'VISA',       8,  2027),
     (1, 'Asha Verma',  '**** **** **** 5678', 'MASTERCARD', 11, 2026),
-    (2, 'Rohit Kumar', '**** **** **** 9012', 'RUPAY',      3,  2028);
+    (2, 'Rohit Kumar', '**** **** **** 9012', 'RUPAY',      3,  2028)
+) AS seed(user_id, card_holder, card_number, card_network, expiry_month, expiry_year)
+WHERE NOT EXISTS (SELECT 1 FROM cards);
 
 -- Payments (linked to users and optionally a card)
-INSERT INTO payments (user_id, card_id, amount, upi_id, status) VALUES
+INSERT INTO payments (user_id, card_id, amount, upi_id, status)
+SELECT * FROM (VALUES
     (1, 1, 1500.00, 'asha@okhdfcbank',  'SUCCESS'),
     (1, 2,  299.50, 'asha@okhdfcbank',  'SUCCESS'),
-    (2, 3, 4999.99, 'rohit@oksbi',      'PENDING');
+    (2, 3, 4999.99, 'rohit@oksbi',      'PENDING')
+) AS seed(user_id, card_id, amount, upi_id, status)
+WHERE NOT EXISTS (SELECT 1 FROM payments);
 
 -- =====================================================================
 -- Quick verification queries (optional)

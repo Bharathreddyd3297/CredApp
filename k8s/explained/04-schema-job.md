@@ -142,10 +142,16 @@ or use any elevated capability, so this costs nothing functionally.
 
 ## Is it safe to re-run?
 
-Yes. `schema.sql` opens with `DROP TABLE IF EXISTS ... CASCADE` for all
-three tables before recreating them — so re-running this Job is
-idempotent **but destructive to existing data**. Only re-run it
-deliberately, never as a routine step against a database you care about.
+Yes, non-destructively. `schema.sql` uses `CREATE TABLE IF NOT EXISTS` for
+all three tables, and its sample-data `INSERT`s are each guarded by
+`WHERE NOT EXISTS (SELECT 1 FROM <table>)` — so they only ever fire once,
+against an empty table. Real users/cards/payments created through the
+live app are never touched. This is exactly why `azure-pipelines.yml` runs
+this Job on **every** deploy, not just the first one: it needs to be safe
+to run routinely against a database you care about. (An earlier version of
+this file opened with `DROP TABLE ... CASCADE`, which was genuinely
+destructive on every re-run — see `STAGE2-CHANGES.md` for why and how it
+was fixed.)
 
 ## Apply & verify
 
