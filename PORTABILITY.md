@@ -45,6 +45,16 @@ destructive, collaboration-breaking operation I did not perform. Let me
 know if you want help with that; it's most urgent if the GitHub repo is
 public or about to be made public.
 
+**Update (2026-07-09):** `terraform/terraform.tfvars` is now **intentionally
+committed again**, subscription ID included. Root cause: Azure DevOps secret
+pipeline variables can't be expanded into a `TerraformTask@5` `commandOptions`
+input (only into script `env:` mappings), so passing `subscriptionId` as a
+pipeline variable silently resolved to empty and broke `terraform apply` in
+CI. The alternative fix (mark the pipeline variable non-secret) was offered
+and explicitly declined in favor of committing the value, since this is a
+classroom capstone project. If this repo is ever made public, revisit this
+decision — the risk described above still applies.
+
 ---
 
 ## B. Hardcoded, environment-specific values — must change for someone else's Azure
@@ -61,8 +71,8 @@ they're in a completely different subscription.
 | 2 | `k8s/configmap/configmap.yaml` | `DB_HOST` / `SPRING_DATASOURCE_URL` = `psql-credpay.postgres.database.azure.com` | Points at *your* Postgres server | After their own `terraform apply`, run `terraform output -raw postgres_fqdn` and substitute it in |
 | 3 | `terraform/main.tf` line 7 | `name_prefix = "credpay"` (hardcoded `local`, not a `variable`) | Every resource name derives from this, including the globally-unique Postgres server name (`psql-credpay`). As long as your `psql-credpay` server exists, nobody else can create their own with the same prefix | They must edit this line to something unique (e.g. their name/team) before running `terraform apply` |
 | 4 | `terraform/backend.tf` | `resource_group_name = "CredProj"`, `storage_account_name = "credprojstate"`, `container_name = "statefile"` | Points at *your* pre-existing remote-state storage account (storage account names are globally unique too). Terraform backend blocks cannot use variables, so this must be hand-edited | They provision their own state storage account (out-of-band, before `terraform init`) and edit this file to match |
-| 5 | `azure-pipelines.yml` | `acrServiceConnection: 'CredPay-ACR-SC'`, `azureServiceConnection: 'scnew2'`, `tfStateRG/tfStateStorage/tfStateContainer/tfStateKey`, `keyVaultName`, `keyVaultResourceGroup` | These name *your* Azure DevOps service connections and *your* Key Vault, and must match whatever backend/vault they set up in #4 and #7 | They create their own Azure DevOps service connections and Key Vault, and update these pipeline variables. `subscriptionId` is intentionally left blank in the YAML — they set it as a pipeline variable in the Azure DevOps UI instead of committing it |
-| 6 | `terraform/terraform.tfvars` | `key_vault_name = "kv-credpay"`, `key_vault_resource_group_name = "rg-credpay"` | Points at *your* Key Vault (also globally unique) | Create their own Key Vault, grant Terraform's identity `Key Vault Secrets Officer` on it, and set these two vars to match |
+| 5 | `azure-pipelines.yml` | `acrServiceConnection: 'CredPay-ACR-SC'`, `azureServiceConnection: 'scnew2'`, `tfStateRG/tfStateStorage/tfStateContainer/tfStateKey`, `keyVaultName`, `keyVaultResourceGroup` | These name *your* Azure DevOps service connections and *your* Key Vault, and must match whatever backend/vault they set up in #4 and #7 | They create their own Azure DevOps service connections and Key Vault, and update these pipeline variables |
+| 6 | `terraform/terraform.tfvars` | `subscription_id = "eb2e4db4-..."`, `key_vault_name = "kv-credpay"`, `key_vault_resource_group_name = "CredProj"` | Points at *your* subscription and *your* Key Vault (also globally unique) - see the 2026-07-09 update in section A above for why this file is committed at all | Create their own Key Vault, grant Terraform's identity `Key Vault Secrets Officer` on it, and set all three values to match their own subscription/vault |
 | 7 | `k8s/README.md`, `terraform/README.md` (docs only) | Mentions of `credproj.azurecr.io`, `az aks update --attach-acr credproj`, `kv-credpay` | Cosmetic, but misleading once 1–6 are changed | Update after the above so the runbooks stay accurate |
 
 **Already parameterized correctly — no change needed:** `postgres_admin_username`,

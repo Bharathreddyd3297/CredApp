@@ -29,5 +29,8 @@ database_name           = "credpay"
 log_retention_days = 30
 
 # ----- Key Vault (created out-of-band - see k8s/README.md) -----
+# Can live in any resource group you already control - doesn't have to be
+# rg-credpay. This project's own vault lives in the CredProj bootstrap RG
+# alongside the Terraform state storage account.
 key_vault_name                 = "kv-credpay"
-key_vault_resource_group_name  = "rg-credpay"
+key_vault_resource_group_name  = "CredProj"

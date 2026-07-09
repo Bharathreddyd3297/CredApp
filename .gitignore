@@ -14,9 +14,12 @@ crash.log
 crash.*.log
 
 # Variable files with real values - keep only *.tfvars.example
+# EXCEPTION: terraform/terraform.tfvars is intentionally committed for this
+# capstone project (see terraform/terraform.tfvars's own header comment).
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+!terraform/terraform.tfvars
 
 # Saved plans
 *.tfplan
