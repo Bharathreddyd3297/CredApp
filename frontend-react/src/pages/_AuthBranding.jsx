@@ -38,7 +38,20 @@ export default function AuthBranding({ heading, subheading }) {
       </Box>
 
       <Box>
-        <Typography variant="h2" sx={{ fontSize: { md: 44 }, lineHeight: 1.1, mb: 2 }}>
+        <Typography
+          variant="h2"
+          sx={{
+            fontSize: { md: 44 },
+            lineHeight: 1.1,
+            mb: 2,
+            background: goldGradient,
+            backgroundSize: '200% auto',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            animation: 'floatShine 4s ease-in-out infinite',
+          }}
+        >
           {heading}
         </Typography>
         <Typography variant="h6" sx={{ fontWeight: 400, color: 'text.secondary', maxWidth: 440 }}>
