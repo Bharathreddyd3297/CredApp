@@ -48,15 +48,18 @@ run on: a network, a Kubernetes cluster, a PostgreSQL database, and monitoring.
 - ✅ Azure Database for PostgreSQL Flexible Server — database `credpay`, random password,
   SSL enabled, public access (Phase 1)
 - ✅ Log Analytics Workspace + Container Insights
+- ✅ PostgreSQL secrets written into an **existing** Azure Key Vault (`postgres-host`,
+  `postgres-db-name`, `postgres-username`, `postgres-password`) — the vault itself is
+  created out-of-band, same as the ACR below.
 
 ---
 
 ## Resources NOT Created
 
 - ❌ Azure Container Registry (an ACR named **`credproj`** already exists)
+- ❌ Azure Key Vault (an existing vault is looked up by name/RG — see `modules/keyvault`)
 - ❌ Application Gateway / AGIC / Azure Firewall / WAF
 - ❌ Azure Bastion / Private Endpoints / Private DNS
-- ❌ Azure Key Vault
 - ❌ Role Assignments (no AcrPull / ACR attach)
 - ❌ NGINX Ingress, Kubernetes manifests, Secrets, ConfigMaps, Helm
 
@@ -80,7 +83,8 @@ terraform/
     ├── networking/
     ├── aks/
     ├── postgres/
-    └── monitoring/
+    ├── monitoring/
+    └── keyvault/               # writes Postgres secrets into an existing Key Vault
 ```
 
 ---
@@ -142,6 +146,12 @@ terraform destroy
 
 > Copy `terraform.tfvars.example` to `terraform.tfvars` and set `subscription_id`
 > before running `plan`/`apply`.
+>
+> `key_vault_name` / `key_vault_resource_group_name` must point at an **existing**
+> Key Vault created out-of-band (like the ACR). The identity running Terraform
+> (your `az login` user, or the Azure DevOps service connection's SPN) needs
+> permission to set secrets on it — e.g. the **Key Vault Secrets Officer** RBAC
+> role, or a classic access policy with Get/List/Set on secrets.
 
 ---
 
@@ -174,6 +184,7 @@ kubectl get nodes
 | `postgres_admin_username` | DB admin username |
 | `postgres_admin_password` | DB admin password (sensitive) |
 | `log_analytics_workspace_id` | Log Analytics workspace ID |
+| `key_vault_name` | Key Vault that now holds the Postgres secrets |
 
 View them with `terraform output` (add `-raw <name>` for a single value).
 
@@ -188,4 +199,4 @@ View them with `terraform output` (add `-raw <name>` for a single value).
 | **Phase 3** | Deploy Kubernetes manifests — frontend, user-service, payment-service |
 | **Phase 4** | Update application configuration — ConfigMaps, Secrets |
 | **Phase 5** | Integrate AKS with the existing ACR (`credproj`) |
-| **Phase 6** | Azure Key Vault, monitoring enhancements, Helm |
+| **Phase 6** | ✅ Push PostgreSQL secrets into Azure Key Vault (this phase) — Azure DevOps pipeline reads them via `AzureKeyVault@2` and creates the Kubernetes Secret |

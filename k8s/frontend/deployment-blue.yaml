@@ -1,20 +1,29 @@
 # =====================================================================
-# Frontend (React + Nginx) - serves static SPA on port 80
+# Frontend (React + Nginx) - BLUE slot
+# =====================================================================
+# Blue/Green: the pipeline always keeps both frontend-blue and
+# frontend-green running. On each deploy it restarts whichever color is
+# NOT currently receiving traffic (see the frontend Service), runs a
+# smoke test against it, and only then flips the frontend Service
+# selector to point at it. The other color is left running untouched so
+# the previous version stays one flip away if something goes wrong.
 # =====================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: frontend-blue
   namespace: credpay
   labels:
     app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: credpay
+    version: blue
 spec:
   replicas: 2
   revisionHistoryLimit: 5
   selector:
     matchLabels:
       app.kubernetes.io/name: frontend
+      version: blue
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,6 +34,7 @@ spec:
       labels:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: credpay
+        version: blue
     spec:
       automountServiceAccountToken: false
       securityContext:

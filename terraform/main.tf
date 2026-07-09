@@ -84,3 +84,17 @@ module "aks" {
   log_analytics_workspace_id = module.monitoring.workspace_id
   tags                       = local.tags
 }
+
+# ---------------------------------------------------------------------
+# 6. Key Vault secrets (vault itself is created out-of-band, like the ACR)
+# ---------------------------------------------------------------------
+module "keyvault" {
+  source = "./modules/keyvault"
+
+  key_vault_name                = var.key_vault_name
+  key_vault_resource_group_name = var.key_vault_resource_group_name
+  postgres_fqdn                 = module.postgres.fqdn
+  postgres_database_name        = module.postgres.database_name
+  postgres_admin_username       = module.postgres.admin_username
+  postgres_admin_password       = module.postgres.admin_password
+}

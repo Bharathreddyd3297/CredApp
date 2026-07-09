@@ -155,6 +155,9 @@ kubectl apply -f k8s/configmap/configmap.yaml
 #    Get the real password from whoever provisioned Postgres, or if you
 #    have Terraform state access:
 #      terraform -chdir=terraform output -raw postgres_admin_password
+
+  terraform output -raw postgres_password
+
 kubectl create secret generic credpay-db `
   --namespace credpay `
   --from-literal=DB_PASSWORD="<real-postgres-password>" `
@@ -242,6 +245,19 @@ kubectl logs job/db-schema-init -n credpay
 kubectl exec -it deployment/user-service -n credpay -- sh
 ```
 
+If `kubectl wait` (§7 step 4) fails with something like `http2: client connection lost`
+followed by `dial tcp: lookup <cluster>.hcp.<region>.azmk8s.io: no such host`, that's a
+transient network/DNS blip on your laptop (flaky WiFi, VPN reconnect, sleep/wake) dropping
+the watch stream — not a sign the job or cluster is broken. Just check the job directly
+instead of watching it:
+
+```powershell
+kubectl get job/db-schema-init -n credpay
+```
+
+If `COMPLETIONS` shows `1/1`, it already succeeded — ignore the wait error and continue.
+Otherwise, just re-run the `kubectl wait` command (safe to retry).
+
 ---
 
 ## Appendix: this is a BRAND NEW Azure environment, not the existing shared one
@@ -270,9 +286,10 @@ Then, **before** §7 above, update these files with your new environment's
 real values:
 - `k8s/configmap/configmap.yaml` — `DB_HOST` / `SPRING_DATASOURCE_URL` from
   `terraform output -raw postgres_fqdn`
-- `k8s/frontend/deployment.yaml`, `k8s/user-service/deployment.yaml`,
-  `k8s/payment-service/deployment.yaml` — the `image:` line, replacing
-  `credproj.azurecr.io` with `<your-acr-name>.azurecr.io`
+- `k8s/frontend/deployment-blue.yaml`, `k8s/frontend/deployment-green.yaml`,
+  `k8s/user-service/deployment.yaml`, `k8s/payment-service/deployment.yaml` —
+  the `image:` line, replacing `credproj.azurecr.io` with
+  `<your-acr-name>.azurecr.io`
 
 And update `azure-pipelines.yml` / `Pipelines/dockerstage.yml` with your own
 Azure DevOps service connection names so the pipeline can build and push to

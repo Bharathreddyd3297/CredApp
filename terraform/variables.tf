@@ -86,3 +86,17 @@ variable "log_retention_days" {
   type    = number
   default = 30
 }
+
+# ----- Key Vault -----
+# The vault itself is created out-of-band (same pattern as the ACR) -
+# Terraform only looks it up and writes the PostgreSQL secrets into it.
+
+# Name of the existing Azure Key Vault
+variable "key_vault_name" {
+  type = string
+}
+
+# Resource group containing the existing Key Vault
+variable "key_vault_resource_group_name" {
+  type = string
+}
