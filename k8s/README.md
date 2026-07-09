@@ -255,7 +255,10 @@ IP, and a broken backend is caught before any real user sees it:
 NEW_POD=$(kubectl get pods -n credpay -l app.kubernetes.io/name=frontend,version=$NEW \
   -o jsonpath='{.items[0].metadata.name}')
 
-kubectl exec -n credpay "$NEW_POD" -- wget -q -O /dev/null http://localhost:80/
+# 127.0.0.1, not "localhost" - the pod's /etc/hosts resolves localhost to
+# ::1 first, but nginx only listens on 0.0.0.0:80 (IPv4), so wget reports a
+# false "Connection refused" against "localhost" even when the app is fine.
+kubectl exec -n credpay "$NEW_POD" -- wget -q -O /dev/null http://127.0.0.1:80/
 kubectl exec -n credpay "$NEW_POD" -- wget -q -O /dev/null \
   http://user-service.credpay.svc.cluster.local:8080/api/users/health
 kubectl exec -n credpay "$NEW_POD" -- wget -q -O /dev/null \

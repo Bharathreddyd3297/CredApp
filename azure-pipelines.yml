@@ -427,7 +427,11 @@ stages:
             fi
           }
 
-          check "http://localhost:80/" "/ (frontend)"
+          # 127.0.0.1, not "localhost": the pod's /etc/hosts maps localhost
+          # to ::1 first, but nginx only listens on 0.0.0.0:80 (IPv4) - wget
+          # doesn't fall back address families, so "localhost" gets a false
+          # "Connection refused" even though the app is healthy.
+          check "http://127.0.0.1:80/" "/ (frontend)"
           check "http://user-service.$(k8sNamespace).svc.cluster.local:8080/api/users/health" "/api/users/health (user-service)"
           check "http://payment-service.$(k8sNamespace).svc.cluster.local:8000/api/payment/health" "/api/payment/health (payment-service)"
 
