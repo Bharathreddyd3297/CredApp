@@ -27,6 +27,10 @@ variables:
   acrServiceConnection: 'CredPay-ACR-SC'
   azureServiceConnection: 'scnew2'
 
+  # ACR resource name (not the service connection name above) - needed for
+  # `az aks update --attach-acr`, which takes the registry's own name.
+  acrName: 'credproj'
+
   # Image tag - every build is pushed as both $(tag) and :latest
   tag: '$(Build.BuildId)'
 
@@ -253,6 +257,57 @@ stages:
             --admin \
             --overwrite-existing
           kubectl get nodes
+
+    #########################################################
+    # Attach ACR to AKS - grants the kubelet identity AcrPull so pods can
+    # pull images with no imagePullSecrets. Idempotent: safe to re-run
+    # every deployment, only ever changes anything the very first time.
+    #########################################################
+    - task: AzureCLI@2
+      displayName: Attach ACR to AKS
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -e
+          az aks update \
+            --resource-group $(aksResourceGroup) \
+            --name $(aksClusterName) \
+            --attach-acr $(acrName)
+
+    #########################################################
+    # Ensure the ingress-nginx controller is installed - required for the
+    # Ingress manifest applied later to mean anything. `helm upgrade
+    # --install` is create-or-update, so this is a no-op once already
+    # installed. ubuntu-latest Microsoft-hosted agents ship with Helm
+    # preinstalled - no HelmInstaller task needed.
+    #########################################################
+    - task: AzureCLI@2
+      displayName: Ensure Ingress Controller Installed
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -e
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx --create-namespace \
+            --wait --timeout 5m
+
+          echo "Waiting for the ingress-nginx controller's public IP..."
+          for i in $(seq 1 30); do
+            IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [ -n "$IP" ]; then
+              echo "Ingress controller IP: $IP"
+              break
+            fi
+            echo "Still waiting... ($i/30)"
+            sleep 10
+          done
+          kubectl get svc -n ingress-nginx ingress-nginx-controller
 
     #########################################################
     # Read the PostgreSQL secrets Terraform pushed into Key Vault.
